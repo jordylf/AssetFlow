@@ -149,4 +149,6 @@ No authentication, cloud services, AI features, or database dependencies.
 
 Bug reports should include the app version, Windows version, reproduction steps, and relevant errors. Share disposable samples rather than private project files. Before proposing code changes, run `npm run build` and `npm run test:rust`, plus relevant native checks for filesystem or viewer changes.
 
-Created **by odyworks**. No open-source license has been granted in this repository; public visibility alone does not grant permission to redistribute or reuse the code. Third-party dependencies retain their respective licenses.
+## License
+
+AssetFlow is licensed under the [MIT License](LICENSE). Copyright © 2026 Jordy Lian Ferdinand (odyworks). You may use, modify, distribute, and sell copies, provided you retain the copyright and license notices. The software is provided without warranty. Third-party dependencies retain their respective licenses.

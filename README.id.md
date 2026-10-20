@@ -204,4 +204,6 @@ Frontend meminta operasi melalui command Tauri; Rust mengelola akses filesystem 
 
 Laporan bug sebaiknya menyertakan versi aplikasi, versi Windows, langkah reproduksi, dan pesan kesalahan terkait. Gunakan proyek contoh yang aman dibagikan, bukan aset pribadi. Sebelum mengusulkan perubahan kode, jalankan `npm run build` dan `npm run test:rust`, ditambah pemeriksaan native yang relevan untuk perubahan filesystem atau viewer.
 
-Dibuat **by odyworks**. Repositori ini belum memberikan lisensi open source; status public saja tidak memberikan izin untuk mendistribusikan ulang atau menggunakan kembali kode. Dependensi pihak ketiga tetap mengikuti lisensinya masing-masing.
+## Lisensi
+
+AssetFlow menggunakan [Lisensi MIT](LICENSE). Hak cipta © 2026 Jordy Lian Ferdinand (odyworks). Kode boleh digunakan, dimodifikasi, didistribusikan, dan dijual dengan tetap menyertakan pemberitahuan hak cipta dan lisensi. Perangkat lunak disediakan tanpa jaminan. Dependensi pihak ketiga tetap mengikuti lisensinya masing-masing.
