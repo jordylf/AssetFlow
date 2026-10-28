@@ -544,3 +544,46 @@
     padding-top: 14px;
   }
 }
+
+/* Image, video and audio previews share the inspector shell. */
+.image-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.image-stage:active {
+  cursor: grabbing;
+}
+.image-stage:focus-visible {
+  outline: 2px solid #a2d2b8;
+  outline-offset: -2px;
+}
+.image-stage img {
+  max-width: none;
+  transform-origin: center;
+  user-select: none;
+}
+.checkerboard {
+  background-color: #2a2d2f;
+  background-image: conic-gradient(#232628 25%, transparent 0 50%, #232628 0 75%, transparent 0);
+  background-size: 20px 20px;
+}
+.media-stage {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.media-stage video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 6px;
+  background: #000;
+}
+.audio-stage audio {
+  width: min(560px, 100%);
+}

@@ -1,3 +1,4 @@
+use crate::{dependencies, undo::Journal};
 use serde::Serialize;
 use std::{
     collections::HashSet,
@@ -9,7 +10,8 @@ use std::{
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Asset {
-    pub path: String,
+    // The absolute path is rebuilt by the frontend from the project path; omitting it keeps
+    // the scan payload ~40% smaller on large projects.
     pub relative_path: String,
     pub name: String,
     pub extension: String,
@@ -32,12 +34,24 @@ pub struct MoveOperation {
     pub from: String,
     pub to: String,
     pub size: u64,
+    /// Index into `OrganizationPlan::groups` for files that must move together.
+    pub group: Option<usize>,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct DependencyGroup {
+    pub name: String,
+    pub models: Vec<String>,
+    pub files: Vec<String>,
+    /// Destination folder, or None when the group stays in place.
+    pub destination: Option<String>,
+    pub blocked: Option<String>,
 }
 #[derive(Clone, Serialize)]
 pub struct OrganizationPlan {
     pub id: String,
     pub operations: Vec<MoveOperation>,
     pub unchanged: usize,
+    pub groups: Vec<DependencyGroup>,
 }
 pub struct PendingPlan {
     pub preview: OrganizationPlan,
@@ -63,7 +77,7 @@ pub fn display_path(path: &Path) -> String {
         value.trim_start_matches(r"\\?\").to_string()
     }
 }
-fn modified(metadata: &fs::Metadata) -> u64 {
+pub fn file_modified(metadata: &fs::Metadata) -> u64 {
     metadata
         .modified()
         .ok()
@@ -71,7 +85,7 @@ fn modified(metadata: &fs::Metadata) -> u64 {
         .map(|t| t.as_millis() as u64)
         .unwrap_or(0)
 }
-fn is_link(metadata: &fs::Metadata) -> bool {
+pub fn is_link(metadata: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
@@ -189,7 +203,9 @@ pub fn scan(root: &Path) -> Result<Project, String> {
                 }
             };
             let path = entry.path();
-            let metadata = match fs::symlink_metadata(&path) {
+            // On Windows this reuses the directory listing's data (no extra syscall per file) and,
+            // like symlink_metadata, does not follow links.
+            let metadata = match entry.metadata() {
                 Ok(m) => m,
                 Err(e) => {
                     warnings.push(format!("Cannot read {}: {e}", display_path(&path)));
@@ -213,7 +229,6 @@ pub fn scan(root: &Path) -> Result<Project, String> {
             let relative = path.strip_prefix(root).map_err(|e| e.to_string())?;
             let (category, kind) = classify(relative);
             assets.push(Asset {
-                path: display_path(&path),
                 relative_path: relative.to_string_lossy().replace('\\', "/"),
                 name: entry.file_name().to_string_lossy().into_owned(),
                 extension: path
@@ -222,7 +237,7 @@ pub fn scan(root: &Path) -> Result<Project, String> {
                     .to_string_lossy()
                     .to_lowercase(),
                 size: metadata.len(),
-                modified: modified(&metadata),
+                modified: file_modified(&metadata),
                 category,
                 kind,
             });
@@ -257,7 +272,80 @@ pub fn prepare(root: &Path, id: String) -> Result<PendingPlan, String> {
     let mut operations = Vec::new();
     let mut files = Vec::new();
     let mut unchanged = 0;
-    for asset in project.assets {
+    let mut grouped = vec![false; project.assets.len()];
+    let mut groups = Vec::new();
+    let taken = |reserved: &HashSet<String>, target: &Path| -> Result<bool, String> {
+        Ok(root
+            .join(target)
+            .try_exists()
+            .map_err(|e| format!("Cannot check destination: {e}"))?
+            || reserved.contains(&target.to_string_lossy().replace('\\', "/").to_lowercase()))
+    };
+    // Models and their relative resources move as one folder so every relative path still resolves.
+    for group in dependencies::groups(root, &project.assets) {
+        for &i in &group.members {
+            grouped[i] = true;
+        }
+        let paths: Vec<&str> = group
+            .members
+            .iter()
+            .map(|&i| project.assets[i].relative_path.as_str())
+            .collect();
+        let name = Path::new(&project.assets[group.models[0]].name)
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let common = dependencies::common_folder(&paths);
+        let models_folder = category_folder("Models");
+        let organized = common.eq_ignore_ascii_case(models_folder)
+            || common
+                .to_lowercase()
+                .starts_with(&format!("{}/", models_folder.to_lowercase()));
+        let mut entry = DependencyGroup {
+            name: name.clone(),
+            models: group
+                .models
+                .iter()
+                .map(|&i| project.assets[i].relative_path.clone())
+                .collect(),
+            files: paths.iter().map(|p| p.to_string()).collect(),
+            destination: None,
+            blocked: group.blocked,
+        };
+        if entry.blocked.is_some() || organized {
+            unchanged += usize::from(organized && entry.blocked.is_none()) * paths.len();
+            groups.push(entry);
+            continue;
+        }
+        let mut folder = Path::new(models_folder).join(&name);
+        let mut suffix = 1;
+        while taken(&reserved, &folder)? {
+            folder = Path::new(models_folder).join(format!("{name}_{suffix:02}"));
+            suffix += 1;
+        }
+        let folder = folder.to_string_lossy().replace('\\', "/");
+        reserved.insert(folder.to_lowercase());
+        for &i in &group.members {
+            let asset = &project.assets[i];
+            let inside = asset.relative_path[common.len()..].trim_start_matches('/');
+            let to = format!("{folder}/{inside}");
+            reserved.insert(to.to_lowercase());
+            operations.push(MoveOperation {
+                from: asset.relative_path.clone(),
+                to,
+                size: asset.size,
+                group: Some(groups.len()),
+            });
+            files.push(asset.clone());
+        }
+        entry.destination = Some(folder);
+        groups.push(entry);
+    }
+    for (i, asset) in project.assets.into_iter().enumerate() {
+        if grouped[i] {
+            continue;
+        }
         let folder = category_folder(&asset.category);
         let initial = Path::new(folder).join(&asset.name);
         if asset
@@ -277,20 +365,16 @@ pub fn prepare(root: &Path, id: String) -> Result<PendingPlan, String> {
             .unwrap_or_default();
         let mut target = initial;
         let mut suffix = 1;
-        while root
-            .join(&target)
-            .try_exists()
-            .map_err(|e| format!("Cannot check destination: {e}"))?
-            || reserved.contains(&target.to_string_lossy().to_lowercase())
-        {
+        while taken(&reserved, &target)? {
             target = Path::new(folder).join(format!("{stem}_{suffix:02}{ext}"));
             suffix += 1;
         }
-        reserved.insert(target.to_string_lossy().to_lowercase());
+        reserved.insert(target.to_string_lossy().replace('\\', "/").to_lowercase());
         operations.push(MoveOperation {
             from: asset.relative_path.clone(),
             to: target.to_string_lossy().replace('\\', "/"),
             size: asset.size,
+            group: None,
         });
         files.push(asset);
     }
@@ -299,6 +383,7 @@ pub fn prepare(root: &Path, id: String) -> Result<PendingPlan, String> {
             id,
             operations,
             unchanged,
+            groups,
         },
         files,
     })
@@ -326,14 +411,18 @@ pub fn validate_file(root: &Path, relative: &Path) -> Result<PathBuf, String> {
     }
     Ok(canonical)
 }
-pub fn execute(root: &Path, plan: PendingPlan) -> Result<OrganizationResult, String> {
+pub fn execute(
+    root: &Path,
+    plan: PendingPlan,
+    journal: &Path,
+) -> Result<OrganizationResult, String> {
     // Validate the entire preview before the first move. Paths only come from the stored backend plan.
     for (operation, asset) in plan.preview.operations.iter().zip(&plan.files) {
         let source = validate_file(root, Path::new(&operation.from))?;
         let metadata = fs::metadata(&source).map_err(|e| e.to_string())?;
         if !metadata.is_file()
             || metadata.len() != asset.size
-            || modified(&metadata) != asset.modified
+            || file_modified(&metadata) != asset.modified
         {
             return Err(format!(
                 "{} changed since the preview. Review a new organization preview.",
@@ -356,7 +445,19 @@ pub fn execute(root: &Path, plan: PendingPlan) -> Result<OrganizationResult, Str
         moved: 0,
         errors: Vec::new(),
     };
-    for operation in &plan.preview.operations {
+    if plan.preview.operations.is_empty() {
+        return Ok(result);
+    }
+    // Undo history must be durable before anything moves; if it cannot be written, nothing moves.
+    let intents: Vec<_> = plan
+        .preview
+        .operations
+        .iter()
+        .zip(&plan.files)
+        .map(|(o, a)| (o, a.modified))
+        .collect();
+    let mut history = Journal::begin(journal, root, &plan.preview.id, &intents)?;
+    for (i, operation) in plan.preview.operations.iter().enumerate() {
         let attempt = || -> Result<(), String> {
             let source = validate_file(root, Path::new(&operation.from))?;
             let target = root.join(&operation.to);
@@ -367,18 +468,24 @@ pub fn execute(root: &Path, plan: PendingPlan) -> Result<OrganizationResult, Str
             move_no_replace(&source, &target)
                 .map_err(|e| format!("Cannot move {} to {}: {e}", operation.from, operation.to))
         };
-        match attempt() {
-            Ok(()) => result.moved += 1,
+        match attempt().and_then(|()| {
+            result.moved += 1;
+            history.done(i)
+        }) {
+            Ok(()) => {}
             Err(e) => {
                 result.errors.push(e);
                 break;
             }
         }
     }
+    if result.errors.is_empty() {
+        history.complete()?;
+    }
     Ok(result)
 }
 #[cfg(windows)]
-fn move_no_replace(source: &Path, target: &Path) -> io::Result<()> {
+pub fn move_no_replace(source: &Path, target: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     extern "system" {
@@ -394,7 +501,7 @@ fn move_no_replace(source: &Path, target: &Path) -> io::Result<()> {
     }
 }
 #[cfg(not(windows))]
-fn move_no_replace(_: &Path, _: &Path) -> io::Result<()> {
+pub fn move_no_replace(_: &Path, _: &Path) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "Organization currently requires Windows.",
@@ -429,6 +536,10 @@ mod tests {
         fs::write(dir.join("nested/wall_normal.png"), b"second").unwrap();
         fs::write(dir.join("04_Textures/wall_normal.png"), b"existing").unwrap();
         let root = fs::canonicalize(&dir).unwrap();
+        let journal = std::env::temp_dir().join(format!(
+            "{}.jsonl",
+            dir.file_name().unwrap().to_string_lossy()
+        ));
         let plan = prepare(&root, "test".into()).unwrap();
         assert_eq!(plan.preview.operations.len(), 2);
         assert_eq!(plan.preview.unchanged, 1);
@@ -439,10 +550,10 @@ mod tests {
         {
             let collision = root.join(&plan.preview.operations[0].to);
             fs::write(&collision, b"occupied").unwrap();
-            assert!(execute(&root, plan).is_err());
+            assert!(execute(&root, plan, &journal).is_err());
             assert!(dir.join("wall_normal.png").exists());
             let plan = prepare(&root, "next".into()).unwrap();
-            let result = execute(&root, plan).unwrap();
+            let result = execute(&root, plan, &journal).unwrap();
             assert_eq!(result.moved, 2);
             assert!(result.errors.is_empty());
             assert_eq!(
@@ -463,7 +574,7 @@ mod tests {
             assert_eq!(fs::read(&b).unwrap(), b"b");
             let stale = prepare(&root, "stale".into()).unwrap();
             fs::write(&a, b"changed after preview").unwrap();
-            assert!(execute(&root, stale)
+            assert!(execute(&root, stale, &journal)
                 .unwrap_err()
                 .contains("changed since the preview"));
             assert_eq!(fs::read(&a).unwrap(), b"changed after preview");
@@ -475,6 +586,7 @@ mod tests {
             .unwrap()
             .to_string_lossy()
             .starts_with("assetflow-test-"));
+        let _ = fs::remove_file(&journal);
         fs::remove_dir_all(dir).unwrap();
     }
 }

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ArrowUpRight,
   ChartNoAxesColumnIncreasing,
@@ -14,17 +15,19 @@ export function StorageInsights({
   assets: Asset[];
   onSelect: (asset: Asset) => void;
 }) {
-  const total = assets.reduce((n, a) => n + a.size, 0);
-  const distribution = categories
-    .map((category) => ({
-      category,
-      size: assets
-        .filter((a) => a.category === category)
-        .reduce((n, a) => n + a.size, 0),
-    }))
-    .filter((c) => c.size > 0)
-    .sort((a, b) => b.size - a.size);
-  const largest = [...assets].sort((a, b) => b.size - a.size).slice(0, 4);
+  const { total, distribution, largest } = useMemo(() => {
+    const sizes = new Map<string, number>();
+    for (const a of assets)
+      sizes.set(a.category, (sizes.get(a.category) ?? 0) + a.size);
+    return {
+      total: assets.reduce((n, a) => n + a.size, 0),
+      distribution: categories
+        .map((category) => ({ category, size: sizes.get(category) ?? 0 }))
+        .filter((c) => c.size > 0)
+        .sort((a, b) => b.size - a.size),
+      largest: [...assets].sort((a, b) => b.size - a.size).slice(0, 4),
+    };
+  }, [assets]);
   return (
     <aside className="insights">
       <div className="section-heading">

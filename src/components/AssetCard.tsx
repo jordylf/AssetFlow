@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Star } from "lucide-react";
 import type { Asset } from "../types";
 import { AssetIcon } from "./AssetIcon";
 import { categoryColors, formatDate, formatSize } from "../lib/format";
-import { thumbnail } from "../lib/filesystem";
+import { useThumbnail } from "../lib/thumbnails";
 export function AssetArtwork({
   asset,
   thumbnails = true,
@@ -11,11 +11,12 @@ export function AssetArtwork({
   asset: Asset;
   thumbnails?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
-  const src = thumbnails ? thumbnail(asset.path, asset.extension) : undefined;
+  const preview = useThumbnail(asset, thumbnails, ref);
   return (
     <div
+      ref={ref}
       className={`asset-artwork art-${asset.category.toLowerCase()}`}
       style={
         {
@@ -23,22 +24,22 @@ export function AssetArtwork({
         } as React.CSSProperties
       }
     >
-      {src && !failed ? (
+      {preview.supported && !preview.failed ? (
         <>
           <span
-            className={`thumbnail-placeholder ${loaded ? "ready" : ""}`}
+            className={`thumbnail-placeholder ${loaded && preview.url ? "ready" : ""}`}
             aria-hidden="true"
           >
             <AssetIcon category={asset.category} size={30} />
           </span>
-          <img
-            loading="lazy"
-            src={src}
-            onError={() => setFailed(true)}
-            onLoad={() => setLoaded(true)}
-            className={loaded ? "thumbnail-loaded" : "thumbnail-pending"}
-            alt={asset.name}
-          />
+          {preview.url && (
+            <img
+              src={preview.url}
+              onLoad={() => setLoaded(true)}
+              className={loaded ? "thumbnail-loaded" : "thumbnail-pending"}
+              alt={asset.name}
+            />
+          )}
         </>
       ) : (
         <>

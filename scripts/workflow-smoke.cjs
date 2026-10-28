@@ -1,0 +1,67 @@
+// Native-only checks using disposable projects. A successful package preview is left ready for the native folder picker.
+const { chromium } = require(process.env.ASSETFLOW_PLAYWRIGHT || "playwright");
+const fs = require("node:fs"), os = require("node:os"), path = require("node:path"), assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
+(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "assetflow-workflow-ui-"));
+  fs.mkdirSync(path.join(root, "models")); fs.mkdirSync(path.join(root, "nested"));
+  fs.writeFileSync(path.join(root, "Notes.txt"), "source notes"); fs.writeFileSync(path.join(root, "empty.txt"), "");
+  fs.writeFileSync(path.join(root, "models", "item.gltf"), JSON.stringify({ asset:{version:"2.0"}, buffers:[{uri:"mesh.bin",byteLength:4}],images:[{uri:"../tex.png"}] }));
+  fs.writeFileSync(path.join(root, "models", "mesh.bin"), Buffer.from([1,2,3,4]));
+  fs.writeFileSync(path.join(root, "broken.gltf"), JSON.stringify({asset:{version:"2.0"},buffers:[{uri:"missing-a.bin"},{uri:"missing-b.bin"},{uri:"https://example.com/not-downloaded.bin"}]}));
+  const browser = await chromium.connectOverCDP(process.env.ASSETFLOW_CDP || "http://127.0.0.1:9223");
+  try {
+    const page = browser.contexts()[0].pages()[0]; page.setDefaultTimeout(15000);
+    const errors=[]; page.on("pageerror", e=>errors.push(e.message));
+    await page.reload(); await page.getByRole("heading",{name:"Your work, in order."}).waitFor(); await page.waitForTimeout(300);
+    const png = async color => Buffer.from((await page.evaluate(color=>{const c=document.createElement("canvas");c.width=c.height=16;const ctx=c.getContext("2d");ctx.fillStyle=color;ctx.fillRect(0,0,16,16);return c.toDataURL("image/png").split(",")[1]},color)),"base64");
+    fs.writeFileSync(path.join(root,"tex.png"),await png("#ff0000"));
+    const open = async root => {await page.evaluate(root=>window.__TAURI_INTERNALS__.invoke("plugin:event|emit",{event:"tauri://drag-drop",payload:{paths:[root],position:{x:400,y:300}}}),root);await page.getByRole("heading",{name:path.basename(root),exact:true}).waitFor();await page.getByRole("button",{name:"Pause live updates",exact:true}).getByText("Live folder",{exact:true}).waitFor();};
+    await open(root);
+    const search=page.getByRole("textbox",{name:"Search assets"});
+    fs.writeFileSync(path.join(root,"nested","new.txt"),"first");
+    await page.getByRole("button",{name:"Inspect new.txt",exact:true}).waitFor();
+    await search.fill("new"); fs.writeFileSync(path.join(root,"nested","new-second.txt"),"second");
+    await page.getByRole("button",{name:"Inspect new-second.txt",exact:true}).waitFor();assert.equal(await search.inputValue(),"new");
+    fs.renameSync(path.join(root,"nested","new.txt"),path.join(root,"nested","renamed.txt"));
+    await page.getByRole("button",{name:"Inspect new.txt",exact:true}).waitFor({state:"detached"});
+    fs.unlinkSync(path.join(root,"nested","new-second.txt"));
+    await page.getByRole("button",{name:"Inspect new-second.txt",exact:true}).waitFor({state:"detached"});
+    await search.fill("");
+    const image=page.locator(".asset-card").filter({has:page.getByRole("button",{name:"Inspect tex.png",exact:true})}).locator(".asset-artwork img");
+    await page.getByRole("button",{name:"Inspect tex.png",exact:true}).scrollIntoViewIfNeeded();await image.waitFor();await page.waitForFunction(()=>{const im=[...document.querySelectorAll('.asset-artwork img')].find(i=>i.alt==='tex.png');return im?.complete&&im.naturalWidth>0});
+    const old=await image.getAttribute("src");fs.writeFileSync(path.join(root,"tex.png"),await png("#0000ff"));
+    await page.waitForFunction(old=>{const im=[...document.querySelectorAll('.asset-artwork img')].find(i=>i.alt==='tex.png');return im&&im.src!==old&&im.complete&&im.naturalWidth>0},old);
+    const pixel=await image.evaluate(async im=>{const blob=await(await fetch(im.src)).blob();const bitmap=await createImageBitmap(blob);const c=document.createElement("canvas");c.width=c.height=1;c.getContext("2d").drawImage(bitmap,0,0,1,1);bitmap.close();return [...c.getContext("2d").getImageData(0,0,1,1).data]});
+    assert.ok(pixel[2]>200&&pixel[0]<40,"Thumbnail must show newly saved blue pixels");
+    await page.getByRole("button",{name:"Pause live updates",exact:true}).click();
+    await page.getByText("Live paused",{exact:true}).waitFor(); fs.writeFileSync(path.join(root,"paused.txt"),"wait");await page.waitForTimeout(1100);
+    assert.equal(await page.getByRole("button",{name:"Inspect paused.txt",exact:true}).count(),0);
+    await page.getByRole("button",{name:"Resume live updates",exact:true}).click();await page.getByRole("button",{name:"Inspect paused.txt",exact:true}).waitFor();
+    await page.getByRole("button",{name:"Inspect Notes.txt",exact:true}).click();await page.getByRole("dialog",{name:"Asset details"}).waitFor();
+    fs.writeFileSync(path.join(root,"deferred.txt"),"after preview");await page.waitForTimeout(1100);
+    assert.equal(await page.locator('.asset-card').filter({hasText:'deferred.txt'}).count(),0);
+    await page.keyboard.press("Escape");await page.getByRole("button",{name:"Inspect deferred.txt",exact:true}).waitFor();
+    await page.getByRole("button",{name:"Health check",exact:true}).click();
+    const health=page.getByRole("dialog",{name:"Project Health Check"});await health.getByText(/missing-a.bin/).waitFor();
+    await health.getByText(/missing-b.bin/).waitFor();await health.getByText(/external URL/).waitFor();await health.getByText(/0 bytes/).waitFor();
+    fs.mkdirSync("test-results",{recursive:true});await page.screenshot({path:"test-results/project-health.png"});await health.getByRole("button",{name:"Close",exact:true}).click();
+    await search.fill("broken.gltf");await page.getByRole("button",{name:"Collect & package",exact:true}).click();
+    let dialog=page.getByRole("dialog",{name:"Collect & Package"});await dialog.getByRole("button",{name:"Review package",exact:true}).click();
+    await dialog.getByText("Resolve these dependencies before collecting",{exact:true}).waitFor();assert.ok(await dialog.getByRole("button",{name:"Confirm & choose destination",exact:true}).isDisabled());await dialog.getByRole("button",{name:"Close",exact:true}).click();
+    // Switching projects and closing one must release its native watcher lease.
+    const second=fs.mkdtempSync(path.join(os.tmpdir(),"assetflow-watch-other-"));fs.writeFileSync(path.join(second,"only.txt"),"second project");
+    await open(second);fs.writeFileSync(path.join(root,"old-project-only.txt"),"old event");await page.waitForTimeout(900);
+    assert.equal(await page.getByRole("button",{name:"Inspect old-project-only.txt",exact:true}).count(),0);
+    await page.getByRole("button",{name:"Close project",exact:true}).click();await page.getByRole("heading",{name:"Your work, in order."}).waitFor();
+    const closed=await page.evaluate(async expectedPath=>{try{await window.__TAURI_INTERNALS__.invoke("refresh_project",{expectedPath});return false}catch{return true}},second);assert.ok(closed);
+    await open(root);await search.fill("item.gltf");await page.getByRole("button",{name:"Collect & package",exact:true}).click();
+    dialog=page.getByRole("dialog",{name:"Collect & Package"});await dialog.getByRole("button",{name:"Review package",exact:true}).click();
+    await page.waitForFunction(()=>document.querySelectorAll(".package-files > div").length===3);
+    assert.equal(await dialog.getByText("dependency",{exact:true}).count(),2);
+    await page.screenshot({path:"test-results/package-preview.png"});
+    const snapshot=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?snapshot(path.join(dir,e.name)):[[path.relative(root,path.join(dir,e.name)),createHash("sha256").update(fs.readFileSync(path.join(dir,e.name))).digest("hex")]]).sort();
+    fs.writeFileSync(path.join(os.tmpdir(),"assetflow-workflow-ui.json"),JSON.stringify({root,before:snapshot(root),destination:fs.mkdtempSync(path.join(os.tmpdir(),"assetflow-package-destination-"))}));
+    assert.deepEqual(errors,[]);console.log("Watcher + health + package preview passed; preview left ready for native destination selection.");
+  } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1});

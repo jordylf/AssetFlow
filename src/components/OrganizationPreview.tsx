@@ -1,12 +1,16 @@
+import { useState } from "react";
 import {
   ArrowRight,
+  Box,
   CheckCheck,
+  CircleAlert,
   FolderTree,
+  Link2,
   ShieldCheck,
   LoaderCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { OrganizationPlan } from "../types";
+import type { OrganizationPlan, UndoStatus } from "../types";
 import { formatSize } from "../lib/format";
 import { Modal } from "./Modal";
 export function OrganizationPreview({
@@ -14,7 +18,9 @@ export function OrganizationPreview({
   busy,
   onClose,
   onConfirm,
+  undo = null,
 }: {
+  undo?: UndoStatus | null;
   plan: OrganizationPlan;
   busy: boolean;
   onClose: () => void;
@@ -27,6 +33,9 @@ export function OrganizationPreview({
       return counts;
     }, {}),
   ).sort(([a], [b]) => a.localeCompare(b));
+  const [shown, setShown] = useState(400);
+  const kept = plan.groups.filter((g) => g.destination);
+  const blocked = plan.groups.filter((g) => g.blocked);
   const pathLabel = (path: string) => {
     const slash = path.lastIndexOf("/");
     return (
@@ -69,6 +78,16 @@ export function OrganizationPreview({
           ))}
         </div>
       )}
+      {undo && plan.operations.length > 0 && (
+        <div className="safety-note warning-note" role="note">
+          <CircleAlert size={16} />
+          <span>
+            Confirming replaces the undo history: {undo.moves}{" "}
+            {undo.moves === 1 ? "file" : "files"} from the last organization
+            can no longer be restored from AssetFlow.
+          </span>
+        </div>
+      )}
       <div className="safety-note">
         <ShieldCheck size={16} />
         <span>
@@ -84,6 +103,41 @@ export function OrganizationPreview({
         </span>
         <span>{plan.unchanged} already organized</span>
       </div>
+      {plan.groups.length > 0 && (
+        <section className="dependency-groups" aria-label="Dependency groups">
+          <h4>
+            <Link2 size={13} />
+            Kept together
+            <span>
+              {kept.length} moving · {blocked.length} left in place
+            </span>
+          </h4>
+          {plan.groups.map((g) => (
+            <div
+              key={g.models[0]}
+              className={`dependency-group ${g.blocked ? "is-blocked" : ""}`}
+            >
+              <span className="dependency-icon">
+                {g.blocked ? <CircleAlert size={14} /> : <Box size={14} />}
+              </span>
+              <div>
+                <strong>
+                  {g.models.length > 1
+                    ? `${g.models.length} models share resources`
+                    : g.models[0].split("/").pop()}
+                </strong>
+                <small>
+                  {g.blocked
+                    ? `Stays in place: ${g.blocked}`
+                    : g.destination
+                      ? `${g.files.length} files → ${g.destination}/ · relative paths preserved`
+                      : `${g.files.length} files already organized together`}
+                </small>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
       {plan.operations.length > 0 ? (
         <div
           className="move-table"
@@ -95,12 +149,20 @@ export function OrganizationPreview({
             <span />
             <span>AFTER</span>
           </div>
-          {plan.operations.map((o) => (
+          {plan.operations.slice(0, shown).map((o) => (
             <div className="move-row" key={o.from}>
               <span title={o.from}>{pathLabel(o.from)}</span>
               <ArrowRight size={14} />
               <span title={o.to}>
                 {pathLabel(o.to)}
+                {o.group !== null && (
+                  <small
+                    className="rename-badge group-badge"
+                    title="Moves with its model so relative references keep working"
+                  >
+                    Kept together
+                  </small>
+                )}
                 {o.from.split("/").pop() !== o.to.split("/").pop() && (
                   <small
                     className="rename-badge"
@@ -112,6 +174,14 @@ export function OrganizationPreview({
               </span>
             </div>
           ))}
+          {plan.operations.length > shown && (
+            <button
+              className="button secondary compact move-more"
+              onClick={() => setShown((n) => n + 2000)}
+            >
+              Show more moves ({plan.operations.length - shown} remaining)
+            </button>
+          )}
         </div>
       ) : (
         <div className="organized-state">
@@ -120,9 +190,12 @@ export function OrganizationPreview({
         </div>
       )}
       <p className="preview-footnote">
-        Files are grouped by type into 01_References through 09_Others.
+        Files are grouped by type into 01_References through 09_Others. GLTF
+        and GLB models move together with the local files they reference.
         Duplicate names receive a safe numbered suffix. Empty source folders are
-        kept.
+        kept. References inside other file types, such as Blender or video
+        projects, are not updated. Only this organization can be undone
+        afterwards; it replaces earlier undo history for this project.
       </p>
       <div className="modal-actions">
         <span className="preview-action-note">

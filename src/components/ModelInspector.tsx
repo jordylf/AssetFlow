@@ -32,6 +32,7 @@ import {
 } from "../lib/model";
 import { formatDate, formatSize } from "../lib/format";
 import { revealAsset } from "../lib/filesystem";
+import { OpenWithButton } from "./AssetTools";
 import "./ModelInspector.css";
 
 type LoadState =
@@ -571,6 +572,7 @@ export default function ModelInspector({
             Default scene · geometry totals include instances. Preview centering
             and wireframe never change the source file.
           </p>
+          <OpenWithButton asset={asset} />
           <div className="model-source-path" title={asset.relativePath}>
             {asset.relativePath}
           </div>

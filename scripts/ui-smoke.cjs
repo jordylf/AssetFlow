@@ -46,7 +46,7 @@ const { mkdirSync } = require("node:fs");
       .getByRole("dialog", { name: "Command palette" })
       .getByRole("option")
       .count(),
-    6,
+    11,
   );
   assert.equal(
     await page
@@ -196,16 +196,15 @@ const { mkdirSync } = require("node:fs");
         event: "tauri://drag-leave",
         payload: {},
       });
-      // Delay one real scan to verify the pending UI; the Rust command still performs the scan.
-      const internals = window.__TAURI_INTERNALS__;
-      const originalInvoke = internals.invoke;
-      internals.invoke = async function (...args) {
-        if (args[0] === "scan_project") {
-          internals.invoke = originalInvoke;
-          await new Promise((resolve) => setTimeout(resolve, 700));
+      // Tauri's invoke is non-writable, so the scan cannot be delayed. Record whether the pending
+      // UI was rendered at all, however briefly, instead of racing a fast scan.
+      window.__sawLoading = false;
+      new MutationObserver((_, observer) => {
+        if (document.body.innerText.includes("Getting to know your project")) {
+          window.__sawLoading = true;
+          observer.disconnect();
         }
-        return originalInvoke.apply(internals, args);
-      };
+      }).observe(document.body, { childList: true, subtree: true });
     });
     await page.evaluate(async (root) => {
       await window.__TAURI_INTERNALS__.invoke("plugin:event|emit", {
@@ -214,12 +213,13 @@ const { mkdirSync } = require("node:fs");
       });
     }, root);
     await page
-      .getByText("Getting to know your project", { exact: true })
-      .waitFor();
-    await page.screenshot({ path: join(screenshots, "native-loading.png") });
-    await page
       .getByRole("heading", { name: root.split("\\").pop(), exact: true })
       .waitFor();
+    assert.equal(
+      await page.evaluate(() => window.__sawLoading),
+      true,
+      "The scan must show its loading state",
+    );
     assert.deepEqual(
       snapshot(root),
       original,
@@ -277,8 +277,20 @@ const { mkdirSync } = require("node:fs");
     await page
       .getByRole("button", { name: "Inspect Reference.png", exact: true })
       .click();
-    await page.getByRole("dialog", { name: "Asset details" }).waitFor();
+    await page.getByRole("dialog", { name: "Image preview" }).waitFor();
+    await page.getByText("1 × 1 px", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await page.getByRole("button", { name: "Fit to view", exact: true }).click();
     await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "Image preview" }).waitFor({ state: "hidden" });
+    // Fixture media files are not real streams: the unsupported-codec fallback must appear.
+    for (const name of ["Film.mp4", "Ambient.wav"]) {
+      await page.getByRole("button", { name: `Inspect ${name}`, exact: true }).click();
+      await page.getByRole("dialog", { name: "Media preview" }).waitFor();
+      await page.getByRole("heading", { name: "This format can’t be played here" }).waitFor();
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog", { name: "Media preview" }).waitFor({ state: "hidden" });
+    }
     await page.locator(".main-scroll").evaluate((el) => {
       el.scrollTop = 0;
     });
@@ -348,6 +360,24 @@ const { mkdirSync } = require("node:fs");
       }
     });
     assert.equal(stale, true);
+    // Undo: preview first, cancel changes nothing, confirm restores every original path.
+    const { existsSync } = require("node:fs");
+    await page.getByRole("button", { name: "Undo Organization", exact: true }).click();
+    const undoDialog = page.getByRole("dialog", { name: "Undo Organization" });
+    await undoDialog.waitFor();
+    await undoDialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    assert.ok(existsSync(join(root, "01_References", "Reference.png")), "Cancel must not restore");
+    await page.getByRole("button", { name: "Undo Organization", exact: true }).click();
+    await undoDialog.getByRole("button", { name: "Restore 8 files", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "8 files restored." }).waitFor();
+    assert.ok(existsSync(join(root, "Reference.png")));
+    assert.equal(readFileSync(join(root, "nested", "stone_normal.png"), "utf8"), "new texture");
+    assert.equal(readFileSync(join(root, "04_Textures", "stone_normal.png"), "utf8"), "existing texture");
+    assert.deepEqual(snapshot(root), original, "Undo must preserve the content multiset");
+    assert.equal(
+      await page.getByRole("button", { name: "Undo Organization", exact: true }).count(),
+      0,
+    );
     console.log(
       `Native UI + Rust round trip passed. Disposable fixture retained at ${root}`,
     );

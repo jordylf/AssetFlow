@@ -13,7 +13,8 @@
     "desktop": "node scripts/desktop.mjs dev",
     "desktop:build": "node scripts/desktop.mjs build",
     "test:rust": "node scripts/desktop.mjs test",
-    "sample": "node scripts/create-sample.mjs"
+    "sample": "node scripts/create-sample.mjs",
+    "bench": "node scripts/perf-bench.cjs"
   },
   "dependencies": {
     "@react-three/fiber": "^9.8.2",

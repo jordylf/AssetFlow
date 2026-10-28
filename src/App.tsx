@@ -18,6 +18,10 @@ import {
   Clock3,
   FolderOpen,
   Grid2X2,
+  Activity,
+  Package,
+  FolderX,
+  History,
   HardDrive,
   Info,
   List,
@@ -39,6 +43,8 @@ import type {
   OrganizationPlan,
   Project,
   RecentProject,
+  UndoPlan,
+  UndoStatus,
   View,
 } from "./types";
 import { Sidebar } from "./components/Sidebar";
@@ -50,6 +56,8 @@ import { AssetList } from "./components/AssetList";
 import { EmptyState } from "./components/EmptyState";
 import { StorageInsights } from "./components/StorageInsights";
 import { OrganizationPreview } from "./components/OrganizationPreview";
+import { OpenWithButton } from "./components/AssetTools";
+import { UndoPreview } from "./components/UndoPreview";
 import { Modal } from "./components/Modal";
 import { AssetArtwork } from "./components/AssetCard";
 import {
@@ -57,6 +65,8 @@ import {
   type PaletteCommand,
 } from "./components/CommandPalette";
 import { AssetLoading } from "./components/AssetLoading";
+import { useProjectWatch } from "./lib/useProjectWatch";
+import { closeProject } from "./lib/filesystem";
 import { navigateItems } from "./lib/keyboard";
 import {
   categories,
@@ -67,15 +77,32 @@ import {
 } from "./lib/format";
 import {
   cancelOrganization,
+  cancelUndo,
   chooseProject,
   confirmOrganization,
+  confirmUndo,
+  audioExtensions,
   desktop,
+  imageExtensions,
   prepareOrganization,
+  prepareUndo,
   revealAsset,
   scanProject,
+  undoStatus,
+  videoExtensions,
 } from "./lib/filesystem";
 
+const ProjectWorkflow = lazy(() => import("./components/ProjectWorkflow"));
+const ContactSheet = lazy(() => import("./components/ContactSheet"));
 const ModelInspector = lazy(() => import("./components/ModelInspector"));
+const ImagePreview = lazy(() =>
+  import("./components/MediaPreview").then((m) => ({ default: m.ImagePreview })),
+);
+const PlaybackPreview = lazy(() =>
+  import("./components/MediaPreview").then((m) => ({
+    default: m.PlaybackPreview,
+  })),
+);
 const statTypes: { kind: AssetKind; category: AssetCategory }[] = [
   { kind: "Images", category: "References" },
   { kind: "Textures", category: "Textures" },
@@ -112,13 +139,32 @@ export default function App() {
     readStored("assetflow-thumbnails", true),
   );
   const [settings, setSettings] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [workflow, setWorkflow] = useState<"health" | "package" | null>(null);
+  const [liveUpdates, setLiveUpdates] = useState(() => readStored("assetflow-live-updates", true));
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [searchRequested, setSearchRequested] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [dropName, setDropName] = useState("");
   const [plan, setPlan] = useState<OrganizationPlan | null>(null);
+  const [undo, setUndo] = useState<UndoStatus | null>(null);
+  const [undoPlan, setUndoPlan] = useState<UndoPlan | null>(null);
+  const refreshUndo = useCallback(() => {
+    if (desktop)
+      void undoStatus()
+        .then(setUndo)
+        .catch(() => setUndo(null));
+  }, []);
   const [selected, setSelected] = useState<Asset | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const watch = useProjectWatch(project, liveUpdates, !!busy || !!selected || !!plan || !!undoPlan || sheetOpen || !!workflow || settings || paletteOpen, setProject);
+  const closeCurrentProject = async () => {
+    if (busyRef.current) return;
+    try {
+      await closeProject(); setProject(null); setSelected(null); setPlan(null); setUndoPlan(null); setUndo(null); setQuery(""); setCategory("All"); setKind(null);
+    } catch (e) { setError(String(e)); }
+  };
+  useEffect(() => { try { localStorage.setItem("assetflow-live-updates", JSON.stringify(liveUpdates)); } catch {} }, [liveUpdates]);
   useEffect(() => {
     try {
       localStorage.setItem("assetflow-favorites", JSON.stringify(favorites));
@@ -134,7 +180,7 @@ export default function App() {
     const timer = setTimeout(() => setToast(""), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  useEffect(() => setLimit(60), [query, category, kind, sort, view, project]);
+  useEffect(() => setLimit(60), [query, category, kind, sort, view, project?.path]);
   const loadProject = useCallback(async (path: string) => {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -149,6 +195,8 @@ export default function App() {
       setKind(null);
       setSelected(null);
       setPlan(null);
+      setUndoPlan(null);
+      refreshUndo();
       setRecents((old) =>
         [
           { name: next.name, path: next.path, openedAt: Date.now() },
@@ -164,7 +212,7 @@ export default function App() {
       busyRef.current = false;
       setBusy("");
     }
-  }, []);
+  }, [refreshUndo]);
   const openProject = useCallback(async () => {
     if (busyRef.current) return;
     try {
@@ -259,27 +307,50 @@ export default function App() {
     setFavorites((old) =>
       old.includes(path) ? old.filter((p) => p !== path) : [...old, path],
     );
-  const assets = project?.assets ?? [];
-  const filtered = useMemo(
-    () =>
-      assets
-        .filter(
-          (a) =>
-            (view !== "Favorites" || favorites.includes(a.path)) &&
-            (category === "All" || a.category === category) &&
-            (!kind || a.kind === kind) &&
-            `${a.name} ${a.relativePath} ${a.extension} ${a.category}`
-              .toLowerCase()
-              .includes(query.toLowerCase()),
-        )
-        .sort((a, b) =>
-          sort === "size"
-            ? b.size - a.size
-            : sort === "modified"
-              ? b.modified - a.modified
-              : a.name.localeCompare(b.name, undefined, { numeric: true }),
-        ),
-    [assets, view, favorites, category, kind, query, sort],
+  const assets = useMemo(() => project?.assets ?? [], [project]);
+  // Sorting and the lowercase search text only change with the project or sort order, not per keystroke.
+  const sorted = useMemo(() => {
+    const collator = new Intl.Collator(undefined, { numeric: true });
+    return assets
+      .map((asset) => ({
+        asset,
+        text: `${asset.name} ${asset.relativePath} ${asset.extension} ${asset.category}`.toLowerCase(),
+      }))
+      .sort((a, b) =>
+        sort === "size"
+          ? b.asset.size - a.asset.size
+          : sort === "modified"
+            ? b.asset.modified - a.asset.modified
+            : collator.compare(a.asset.name, b.asset.name),
+      );
+  }, [assets, sort]);
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+  const filtered = useMemo(() => {
+    const needle = query.toLowerCase();
+    const result: Asset[] = [];
+    for (const { asset, text } of sorted)
+      if (
+        (view !== "Favorites" || favoriteSet.has(asset.path)) &&
+        (category === "All" || asset.category === category) &&
+        (!kind || asset.kind === kind) &&
+        text.includes(needle)
+      )
+        result.push(asset);
+    return result;
+  }, [sorted, view, favoriteSet, category, kind, query]);
+  const stats = useMemo(() => {
+    const totals = new Map<AssetKind, { count: number; size: number }>();
+    for (const a of assets) {
+      const entry = totals.get(a.kind) ?? { count: 0, size: 0 };
+      entry.count++;
+      entry.size += a.size;
+      totals.set(a.kind, entry);
+    }
+    return totals;
+  }, [assets]);
+  const filteredSize = useMemo(
+    () => filtered.reduce((n, a) => n + a.size, 0),
+    [filtered],
   );
   const startOrganization = async () => {
     if (busyRef.current) return;
@@ -320,8 +391,9 @@ export default function App() {
       );
       setProject(next);
       setPlan(null);
+      refreshUndo();
       setToast(
-        `${result.moved} ${result.moved === 1 ? "asset" : "assets"} organized.`,
+        `${result.moved} ${result.moved === 1 ? "asset" : "assets"} organized. You can undo this from the project header.`,
       );
       if (result.errors.length)
         setError(
@@ -329,6 +401,62 @@ export default function App() {
         );
     } catch (e) {
       setPlan(null);
+      refreshUndo();
+      setError(`${String(e)} Rescan the project before trying again.`);
+    } finally {
+      busyRef.current = false;
+      setBusy("");
+    }
+  };
+  const startUndo = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy("Checking what can be restored…");
+    setError("");
+    try {
+      setUndoPlan(await prepareUndo());
+    } catch (e) {
+      setError(String(e));
+      refreshUndo();
+    } finally {
+      busyRef.current = false;
+      setBusy("");
+    }
+  };
+  const closeUndo = () => {
+    setUndoPlan(null);
+    void cancelUndo().catch((e) => setError(String(e)));
+  };
+  const runUndo = async (skipConflicts: boolean) => {
+    if (!undoPlan || !project || busyRef.current) return;
+    busyRef.current = true;
+    setBusy("Restoring your project…");
+    setError("");
+    try {
+      const result = await confirmUndo(undoPlan.id, skipConflicts);
+      const next = await scanProject(project.path);
+      const back = new Map(undoPlan.items.map((i) => [i.from, i.to]));
+      const byRelative = new Map(next.assets.map((a) => [a.relativePath, a]));
+      setFavorites((old) =>
+        old.map((path) => {
+          const asset = project.assets.find((a) => a.path === path);
+          const original = asset && back.get(asset.relativePath);
+          return (original && byRelative.get(original)?.path) || path;
+        }),
+      );
+      setProject(next);
+      setUndoPlan(null);
+      refreshUndo();
+      setToast(
+        `${result.restored} ${result.restored === 1 ? "file" : "files"} restored${result.skipped ? `, ${result.skipped} skipped` : ""}.`,
+      );
+      if (result.errors.length)
+        setError(
+          `${result.restored} files restored before stopping. ${result.errors.join(" ")} ${result.remaining} files can still be restored.`,
+        );
+    } catch (e) {
+      setUndoPlan(null);
+      refreshUndo();
       setError(`${String(e)} Rescan the project before trying again.`);
     } finally {
       busyRef.current = false;
@@ -341,7 +469,10 @@ export default function App() {
     setCategory("All");
     setKind(null);
   };
-  const activeCount = assets.filter((a) => favorites.includes(a.path)).length;
+  const activeCount = useMemo(
+    () => assets.filter((a) => favoriteSet.has(a.path)).length,
+    [assets, favoriteSet],
+  );
   const favoritesEmpty =
     view === "Favorites" &&
     !activeCount &&
@@ -378,6 +509,17 @@ export default function App() {
       disabled: !!busy || !project?.assets.length,
     },
     {
+      id: "undo",
+      label: "Undo Last Organization",
+      detail: busy
+        ? "Available when the current task finishes"
+        : undo
+          ? `Review ${undo.moves} files before restoring them`
+          : "Nothing to undo for this project",
+      icon: History,
+      disabled: !!busy || !undo,
+    },
+    {
       id: "grid",
       label: "Grid View",
       detail: "Browse with image previews and file cards",
@@ -390,6 +532,34 @@ export default function App() {
       detail: "Compare file details in a compact list",
       icon: List,
       active: layout === "list",
+    },
+    {
+      id: "contact-sheet",
+      label: "Create Contact Sheet",
+      detail: "Export the current results as a printable asset catalog",
+      icon: Grid2X2,
+      disabled: !!busy || !desktop || !filtered.length,
+    },
+    {
+      id: "health",
+      label: "Project Health Check",
+      detail: "Find missing GLTF resources, empty files and scan warnings",
+      icon: Activity,
+      disabled: !!busy || !desktop || !project,
+    },
+    {
+      id: "package",
+      label: "Collect & Package",
+      detail: "Copy selected assets and known GLTF dependencies to a new folder",
+      icon: Package,
+      disabled: !!busy || !desktop || !filtered.length,
+    },
+    {
+      id: "close-project",
+      label: "Close Project",
+      detail: "Release the current folder and its live watcher",
+      icon: FolderX,
+      disabled: !!busy || !project,
     },
     {
       id: "settings",
@@ -406,11 +576,15 @@ export default function App() {
       if (id === "open") void openProject();
       if (id === "search") focusSearch();
       if (id === "organize") void startOrganization();
+      if (id === "undo") void startUndo();
       if (id === "grid" || id === "list") {
         setLayout(id);
         if (view === "Recent") setView("Projects");
       }
       if (id === "settings") setSettings(true);
+      if (id === "contact-sheet") setSheetOpen(true);
+      if (id === "health" || id === "package") setWorkflow(id);
+      if (id === "close-project") void closeCurrentProject();
     });
   };
   const scanning = busy === "Reading your project…";
@@ -469,7 +643,10 @@ export default function App() {
                 busy={!!busy}
                 onOpen={() => void openProject()}
                 onOrganize={() => void startOrganization()}
+                undo={undo}
+                onUndo={() => void startUndo()}
                 onRefresh={() => project && void loadProject(project.path)}
+                onClose={() => void closeCurrentProject()}
               />
             )}
             {error && (
@@ -541,14 +718,14 @@ export default function App() {
                 >
                   {statTypes.map(
                     ({ kind: statKind, category: statCategory }) => {
-                      const matches = assets.filter((a) => a.kind === statKind);
+                      const total = stats.get(statKind);
                       return (
                         <StatCard
                           key={statKind}
                           label={statKind}
                           category={statCategory}
-                          count={matches.length}
-                          size={matches.reduce((n, a) => n + a.size, 0)}
+                          count={total?.count ?? 0}
+                          size={total?.size ?? 0}
                           total={assets.length}
                           active={kind === statKind}
                           onClick={() => {
@@ -582,6 +759,12 @@ export default function App() {
                         <span className="status-dot" />
                         {project ? "Indexed locally" : "Ready when you are"}
                       </span>
+                    </div>
+                    <div className="project-tools" aria-label="Project tools">
+                      <button className="button secondary compact" disabled={!!busy || !desktop || !project} onClick={() => setWorkflow("health")}><Activity size={14} />Health check</button>
+                      <button className="button secondary compact" disabled={!!busy || !desktop || !filtered.length} onClick={() => setWorkflow("package")}><Package size={14} />Collect & package</button>
+                      <button className="button secondary compact" disabled={!!busy || !desktop || !filtered.length} onClick={() => setSheetOpen(true)}><Grid2X2 size={14} />Contact sheet</button>
+                      <button className={`live-watch ${watch.error ? "has-error" : ""}`} disabled={!project || !desktop || !!busy} title={watch.error || (liveUpdates ? "Pause automatic folder updates" : "Resume automatic folder updates")} aria-label={watch.error ? "Retry live updates" : liveUpdates ? "Pause live updates" : "Resume live updates"} onClick={() => watch.error ? watch.retry() : setLiveUpdates((v) => !v)}><span className={watch.active && liveUpdates ? "status-dot" : "paused-dot"} />{watch.error ? "Live updates unavailable" : watch.updating ? "Updating assets…" : !liveUpdates ? "Live paused" : watch.active ? "Live folder" : "Live starting…"}</button>
                     </div>
                     <div className="browser-toolbar">
                       <SearchBar
@@ -804,7 +987,7 @@ export default function App() {
                           {Math.min(limit, filtered.length)} of{" "}
                           {filtered.length.toLocaleString()} assets
                           <span className="footer-separator">·</span>
-                          {formatSize(filtered.reduce((n, a) => n + a.size, 0))}
+                          {formatSize(filteredSize)}
                         </span>
                         <span className="keyboard-hint">
                           <kbd>↑</kbd>
@@ -866,7 +1049,7 @@ export default function App() {
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {busy && !plan && (
+        {busy && !plan && !undoPlan && (
           <motion.div
             className="busy-indicator"
             role="status"
@@ -935,10 +1118,29 @@ export default function App() {
       {plan && (
         <OrganizationPreview
           plan={plan}
+          undo={undo}
           busy={!!busy}
           onClose={closePlan}
           onConfirm={() => void organize()}
         />
+      )}
+      {undoPlan && (
+        <UndoPreview
+          plan={undoPlan}
+          busy={!!busy}
+          onClose={closeUndo}
+          onConfirm={(skip) => void runUndo(skip)}
+        />
+      )}
+      {workflow && project && (
+        <Suspense fallback={<Modal title="Project tools" onClose={() => setWorkflow(null)}><p role="status">Preparing project tools…</p></Modal>}>
+          <ProjectWorkflow mode={workflow} project={project} assets={filtered} onClose={() => setWorkflow(null)} />
+        </Suspense>
+      )}
+      {sheetOpen && project && (
+        <Suspense fallback={<Modal title="Contact Sheet" onClose={() => setSheetOpen(false)}><p role="status">Preparing contact sheet…</p></Modal>}>
+          <ContactSheet project={project} assets={filtered} onClose={() => setSheetOpen(false)} />
+        </Suspense>
       )}
       {settings && (
         <Modal title="Settings" onClose={() => setSettings(false)}>
@@ -951,6 +1153,10 @@ export default function App() {
                 <h3>Local is a feature.</h3>
                 <p>No accounts. No uploads. Just your work.</p>
               </div>
+            </div>
+            <div className="setting-row">
+              <div><strong>Live folder updates</strong><p>Watch the active project using native filesystem notifications. Updates wait while a preview or operation is open.</p></div>
+              <button role="switch" aria-checked={liveUpdates} aria-label="Live folder updates" className={`switch ${liveUpdates ? "on" : ""}`} onClick={() => setLiveUpdates((v) => !v)}><span /></button>
             </div>
             <div className="setting-row">
               <div>
@@ -1014,7 +1220,50 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {selected && ["glb", "gltf"].includes(selected.extension) ? (
+      {selected &&
+      desktop &&
+      [...imageExtensions, ...videoExtensions, ...audioExtensions].includes(
+        selected.extension,
+      ) ? (
+        <Modal
+          title={
+            imageExtensions.includes(selected.extension)
+              ? "Image preview"
+              : "Media preview"
+          }
+          onClose={() => setSelected(null)}
+          className="model-inspector"
+          hideHeading
+        >
+          <Suspense
+            fallback={
+              <div className="model-module-loading" role="status">
+                <LoaderCircle size={24} className="spin" />
+                <span>Opening preview…</span>
+              </div>
+            }
+          >
+            {(() => {
+              const Preview = imageExtensions.includes(selected.extension)
+                ? ImagePreview
+                : PlaybackPreview;
+              return (
+                <Preview
+                  key={selected.path}
+                  asset={selected}
+                  favorite={favorites.includes(selected.path)}
+                  onFavorite={() => favorite(selected.path)}
+                  onClose={() => setSelected(null)}
+                  onError={(message) => {
+                    setSelected(null);
+                    setError(message);
+                  }}
+                />
+              );
+            })()}
+          </Suspense>
+        </Modal>
+      ) : selected && ["glb", "gltf"].includes(selected.extension) ? (
         <Modal
           title="3D asset inspector"
           onClose={() => setSelected(null)}
@@ -1092,6 +1341,7 @@ export default function App() {
                   <dd>{selected.relativePath}</dd>
                 </div>
               </dl>
+              <OpenWithButton asset={selected} />
               <button
                 className="button secondary full-width"
                 onClick={() =>
