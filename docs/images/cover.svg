@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="660" viewBox="0 0 1600 660" fill="none">
+  <title>AssetFlow — Your creative work, in order. By odyworks.</title>
+  <rect width="1600" height="660" rx="24" fill="#101413"/>
+  <rect x="1" y="1" width="1598" height="658" rx="23" stroke="#28352F"/>
+  <path d="M900 0V660M1060 0V660M1220 0V660M1380 0V660M900 170H1600M900 330H1600M900 490H1600" stroke="#1B2520"/>
+  <g font-family="Segoe UI,Arial,sans-serif">
+    <rect x="72" y="62" width="50" height="50" rx="13" fill="#B3DCC8"/>
+    <g stroke="#244535" stroke-width="2.3" stroke-linejoin="round"><path d="m84 82 13-7 13 7-13 7-13-7Z"/><path d="m84 89 13 7 13-7M84 96l13 7 13-7"/></g>
+    <text x="138" y="95" font-size="23" font-weight="600" fill="#ECF1ED">AssetFlow.</text>
+    <text x="74" y="199" font-size="13" font-weight="600" letter-spacing="3.2" fill="#A7C2B3">A PLACE FOR EVERY PIECE</text>
+    <text x="68" y="294" font-size="76" font-weight="600" letter-spacing="-3.4" fill="#F0F3EF">Your creative work,</text>
+    <text x="68" y="383" font-size="76" font-weight="600" letter-spacing="-3.4" fill="#B3DCC8">in order.</text>
+    <text x="74" y="439" font-size="22" fill="#9AA99F">Browse. Inspect. Organize. Hand over.</text>
+    <rect x="74" y="485" width="132" height="34" rx="17" stroke="#35463B"/>
+    <circle cx="91" cy="502" r="3" fill="#B3DCC8"/>
+    <text x="103" y="507" font-size="13" fill="#BBC9BF">Windows x64</text>
+    <text x="225" y="507" font-size="13" fill="#9AA99F">Local files. Your workspace.</text>
+    <path d="M74 568H1526" stroke="#2A372E"/>
+    <text x="74" y="611" font-size="15" fill="#91A298">by <tspan fill="#B3DCC8" font-weight="600">odyworks</tspan></text>
+    <text x="1230" y="611" font-size="12" letter-spacing="2" fill="#91A298">CREATIVE ASSET WORKSPACE</text>
+    <g transform="translate(991 138) rotate(-9 140 130)">
+      <rect width="230" height="282" rx="18" fill="#1A241E" stroke="#3A4B3E"/>
+      <rect x="18" y="18" width="194" height="187" rx="9" fill="#2C3C30"/>
+      <path d="M44 177V80l80-26v123M124 54l60 30v93h-60" fill="#9CAB88"/><path d="M71 177v-68l30-9v77" fill="#586C50"/>
+      <text x="21" y="238" font-size="16" font-weight="600" fill="#E4EADD">References</text><text x="21" y="262" font-size="11" letter-spacing="1.7" fill="#9BAC99">IDEAS START HERE</text>
+    </g>
+    <g transform="translate(1228 218) rotate(10 130 140)">
+      <rect width="230" height="282" rx="18" fill="#222126" stroke="#48434D"/>
+      <rect x="18" y="18" width="194" height="187" rx="9" fill="#37333F"/>
+      <path d="M18 119c45-86 102 88 194-30v116H18Z" fill="#8E83AD"/><path d="M18 165c69-90 114 78 194-29v69H18Z" fill="#ABA1C5"/>
+      <text x="21" y="238" font-size="16" font-weight="600" fill="#E8E4EE">Textures</text><text x="21" y="262" font-size="11" letter-spacing="1.7" fill="#A8A0B5">EVERY SURFACE MATTERS</text>
+    </g>
+    <g transform="translate(1115 88)">
+      <rect width="230" height="282" rx="18" fill="#1B2220" stroke="#6B8C7C"/>
+      <rect x="18" y="18" width="194" height="187" rx="9" fill="#28372F"/>
+      <g stroke="#B3DCC8" stroke-width="2" stroke-linejoin="round"><path d="m115 53 57 31v62l-57 32-57-32V84l57-31Z"/><path d="m58 84 57 32 57-32M115 116v62M86 69l57 32v61M86 100v62l58-31M58 115l57 32 57-32"/></g>
+      <text x="21" y="238" font-size="16" font-weight="600" fill="#E7F0EA">Models</text><text x="21" y="262" font-size="11" letter-spacing="1.7" fill="#A1BAAB">A CLOSER LOOK IN 3D</text>
+    </g>
+    <circle cx="1466" cy="104" r="24" fill="#B3DCC8"/><path d="M1455 104h22m-8-8 8 8-8 8" stroke="#244535" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="956" y="526" font-size="12" letter-spacing="2" fill="#718A79">01 / FIND YOUR FLOW</text>
+  </g>
+</svg>
