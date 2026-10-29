@@ -37,7 +37,7 @@ Tidak ada autentikasi, sinkronisasi cloud, fitur AI, atau database. Isi file tet
 
 ## Instalasi Windows
 
-Target build saat ini adalah Windows x64. Jika paket aplikasi sudah diterbitkan, unduh melalui [GitHub Releases](https://github.com/jordylf/AssetFlow/releases):
+Target build saat ini adalah Windows x64. Paket versi 1.0.0 tersedia melalui [GitHub Releases](https://github.com/jordylf/AssetFlow/releases):
 
 - `AssetFlow_1.0.0_x64-setup.exe`: instal untuk pengguna Windows saat ini.
 - `AssetFlow.exe`: jalankan aplikasi standalone secara langsung.

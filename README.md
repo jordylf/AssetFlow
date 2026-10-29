@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="#start-on-windows"><strong>Get started ↗</strong></a> &nbsp; · &nbsp;
+  <a href="https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow_1.0.0_x64-setup.exe"><strong>Download for Windows ↗</strong></a> &nbsp; · &nbsp;
   <a href="docs/GUIDE.md">User guide</a> &nbsp; · &nbsp;
   <a href="https://github.com/jordylf/AssetFlow/releases">Releases</a> &nbsp; · &nbsp;
   <a href="LICENSE">MIT license</a>
@@ -21,6 +21,14 @@
 AssetFlow brings the files behind your creative work into one local Windows workspace. Find a reference, inspect a model, review an organization plan, or collect assets for handoff—without leaving your project folder behind.
 
 Built for **designers, 3D artists, video editors, and developers**. The app interface is in English; documentation is available in English and Indonesian. Crafted **by odyworks**.
+
+## See it in action
+
+[![AssetFlow app tour](docs/images/demo.gif)](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow-demo.mp4)
+
+22-second native-app tour · silent · disposable sample content. Browsing, search, 3D inspection, organization preview, confirmation on a sample, and health check.
+
+[Watch / download the MP4](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow-demo.mp4) · [Version 1.0.0 release notes](docs/releases/1.0.0.md)
 
 ## Every piece of your project, in view
 
@@ -117,12 +125,14 @@ The palette includes opening and closing projects, searching, organizing, undo, 
 
 ## Start on Windows
 
-**Current app version: 1.0.0 · Windows x64.** Packaged builds are produced locally; this README does not assume a downloadable release has been published. Check [GitHub Releases](https://github.com/jordylf/AssetFlow/releases) for available packages, or build from source.
+**Latest release: [1.0.0](https://github.com/jordylf/AssetFlow/releases/tag/v1.0.0) · Windows x64.** Download the installer or standalone executable below. Packages are unsigned; local execution was verified on Windows 11.
 
 | Package | Purpose |
 | --- | --- |
-| `AssetFlow_1.0.0_x64-setup.exe` | NSIS installer for the current Windows user |
-| `AssetFlow.exe` | Standalone executable |
+| [AssetFlow_1.0.0_x64-setup.exe](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow_1.0.0_x64-setup.exe) | NSIS installer for the current Windows user |
+| [AssetFlow.exe](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow.exe) | Standalone executable |
+
+[SHA-256 checksums](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/SHA256SUMS.txt) · [Release notes & limitations](docs/releases/1.0.0.md)
 
 Microsoft Edge **WebView2 Runtime** is required. The 3D viewport needs WebGL hardware acceleration. FFmpeg's `ffprobe.exe` is optional, is not bundled, and must be available through PATH for technical metadata. Ordinary browsing and previews work without it.
 
@@ -174,3 +184,5 @@ Report bugs through [GitHub Issues](https://github.com/jordylf/AssetFlow/issues)
 ## License & credits
 
 [MIT License](LICENSE) · © 2026 Jordy Lian Ferdinand (**odyworks**). Third-party dependencies retain their own licenses. Cover artwork is original; app captures and their sample content are documented in [Visual sources](docs/SHOWCASE.md).
+
+If AssetFlow helps your workflow, consider **starring the repository**. Feedback and reproducible bug reports are welcome too.

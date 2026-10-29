@@ -13,6 +13,12 @@ README memakai artwork AssetFlow dan screenshot aplikasi. Artwork maupun screens
 | `images/package-preview.png` | Native Collect & Package preview for the same fixture. Capture occurs before confirmation; the image does not represent a completed export. |
 | `images/model-inspector.png` | Earlier actual AssetFlow inspector capture from the initial implementation, using a generated sample GLB. It illustrates the existing 3D viewer; it is not a newly recorded model scene. |
 
-App screenshots contain sample content only. No client project, paid model library, or personal creative assets were used. The README does not claim ARM64 support, an available downloadable release, native ZIP/PDF export, or dependency analysis outside GLTF/GLB.
+App screenshots contain sample content only. No client project, paid model library, or personal creative assets were used. The README does not claim ARM64 support, native ZIP/PDF export, or dependency analysis outside GLTF/GLB.
 
-Screenshot aplikasi hanya menggunakan konten contoh. Tidak ada proyek klien, pustaka model berbayar, atau aset kreatif pribadi. README tidak mengklaim dukungan ARM64, release unduhan yang sudah tersedia, ekspor ZIP/PDF native, atau analisis dependency di luar GLTF/GLB.
+Screenshot aplikasi hanya menggunakan konten contoh. Tidak ada proyek klien, pustaka model berbayar, atau aset kreatif pribadi. README tidak mengklaim dukungan ARM64, ekspor ZIP/PDF native, atau analisis dependency di luar GLTF/GLB.
+
+## Launch tour — 2026-10-29
+
+`images/demo.gif` is the 6 fps, 960-pixel-wide preview of the silent 22-second MP4 published with release v1.0.0. Captured from the real release WebView in an isolated profile; only the application surface was recorded, with an explanatory caption band added below it. The disposable fixture uses generated architectural/form/texture images and the generated torus-knot GLB from native tests. Organization was explicitly confirmed on that fixture, and its complete content-hash multiset was verified unchanged. The footage does not depict any user/client project. The output MP4 is 24 fps with repeated capture frames; it is not a 24 fps performance benchmark.
+
+`images/social-preview.png` is a 1280 × 640 share card composed from the original cover. It is ready for the repository social-preview setting; adding this file alone does not configure that GitHub setting.

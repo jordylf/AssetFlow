@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="#mulai-di-windows"><strong>Mulai gunakan ↗</strong></a> &nbsp; · &nbsp;
+  <a href="https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow_1.0.0_x64-setup.exe"><strong>Unduh untuk Windows ↗</strong></a> &nbsp; · &nbsp;
   <a href="docs/GUIDE.id.md">Panduan lengkap</a> &nbsp; · &nbsp;
   <a href="https://github.com/jordylf/AssetFlow/releases">Releases</a> &nbsp; · &nbsp;
   <a href="LICENSE">Lisensi MIT</a>
@@ -21,6 +21,14 @@
 AssetFlow mengumpulkan file di balik pekerjaan kreatifmu dalam satu workspace Windows lokal. Temukan referensi, periksa model, tinjau rencana organisasi, atau kumpulkan aset untuk diserahkan—langsung dari folder proyekmu.
 
 Dibuat untuk **desainer, seniman 3D, editor video, dan developer**. Antarmuka aplikasi memakai bahasa Inggris; dokumentasi tersedia dalam bahasa Inggris dan Indonesia. Dibuat **by odyworks**.
+
+## Lihat cara kerjanya
+
+[![Demo AssetFlow](docs/images/demo.gif)](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow-demo.mp4)
+
+Demo aplikasi asli selama 22 detik · tanpa audio · proyek contoh sekali pakai. Browsing, pencarian, inspector 3D, preview organisasi, konfirmasi pada contoh, dan health check.
+
+[Tonton / unduh video MP4](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow-demo.mp4) · [Catatan versi 1.0.0](docs/releases/1.0.0.md)
 
 ## Setiap bagian proyekmu, terlihat jelas
 
@@ -117,12 +125,14 @@ Palette mencakup buka/tutup proyek, pencarian, organisasi, undo, contact sheet, 
 
 ## Mulai di Windows
 
-**Versi aplikasi saat ini: 1.0.0 · Windows x64.** Paket aplikasi dibuat secara lokal; README ini tidak menganggap release unduhan sudah diterbitkan. Periksa [GitHub Releases](https://github.com/jordylf/AssetFlow/releases) untuk paket yang tersedia, atau build dari source.
+**Versi terbaru: [1.0.0](https://github.com/jordylf/AssetFlow/releases/tag/v1.0.0) · Windows x64.** Unduh installer atau executable standalone di bawah. Paket belum ditandatangani secara digital; pengujian lokal dilakukan pada Windows 11.
 
 | Paket | Kegunaan |
 | --- | --- |
-| `AssetFlow_1.0.0_x64-setup.exe` | Installer NSIS untuk pengguna Windows saat ini |
-| `AssetFlow.exe` | Executable standalone |
+| [AssetFlow_1.0.0_x64-setup.exe](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow_1.0.0_x64-setup.exe) | Installer NSIS untuk pengguna Windows saat ini |
+| [AssetFlow.exe](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/AssetFlow.exe) | Executable standalone |
+
+[SHA-256 checksums](https://github.com/jordylf/AssetFlow/releases/download/v1.0.0/SHA256SUMS.txt) · [Release notes & batas dukungan](docs/releases/1.0.0.md)
 
 Diperlukan Microsoft Edge **WebView2 Runtime**. Viewport 3D membutuhkan akselerasi WebGL. `ffprobe.exe` dari FFmpeg bersifat opsional, tidak disertakan, dan perlu tersedia melalui PATH untuk metadata teknis. Browser aset serta preview dasar tetap berfungsi tanpanya.
 
@@ -174,3 +184,5 @@ Laporkan bug melalui [GitHub Issues](https://github.com/jordylf/AssetFlow/issues
 ## Lisensi & kredit
 
 [Lisensi MIT](LICENSE) · © 2026 Jordy Lian Ferdinand (**odyworks**). Dependensi pihak ketiga tetap memiliki lisensinya masing-masing. Artwork cover dibuat khusus; screenshot aplikasi serta konten contohnya dijelaskan dalam [Sumber visual](docs/SHOWCASE.md).
+
+Jika AssetFlow membantu alur kerjamu, pertimbangkan memberi **star** pada repositorinya. Feedback dan laporan bug juga sangat membantu.

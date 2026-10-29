@@ -35,7 +35,7 @@ Built with Tauri 2, Rust, React, TypeScript, Tailwind CSS, Lucide, Framer Motion
 
 ## Install on Windows
 
-Windows x64 is the current build target. When packaged binaries are published, download them from [GitHub Releases](https://github.com/jordylf/AssetFlow/releases):
+Windows x64 is the current build target. Download version 1.0.0 packages from [GitHub Releases](https://github.com/jordylf/AssetFlow/releases):
 
 - `AssetFlow_1.0.0_x64-setup.exe`: install for the current Windows user.
 - `AssetFlow.exe`: run the standalone application directly.
